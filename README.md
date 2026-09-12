@@ -93,7 +93,7 @@ Agrega varios estudiantes a cola y ejecuta generación masiva para acelerar el c
 ### 1) Clona el repositorio
 
 ```bash
-git clone https://github.com/HaggiTlahuisca/retroia.git
+git clone https://github.com/RetroIA-PLS/retro.git
 cd retroia
 ```
 
