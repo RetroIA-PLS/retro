@@ -18,6 +18,7 @@ Diseñada para ahorrar tiempo, mejorar la calidad del feedback y mantener trazab
 - [✨ Características principales](#caracteristicas-principales)
 - [🖼️ Captura del producto](#captura-del-producto)
 - [🧭 Flujo de uso con ejemplos](#flujo-de-uso-con-ejemplos)
+- [☁️ Uso en la nube (sin instalación)](#uso-en-la-nube)
 - [⚙️ Instalación rápida](#instalacion-rapida)
 - [🔐 Variables de entorno](#variables-de-entorno)
 - [☁️ Despliegue](#despliegue)
@@ -87,8 +88,46 @@ Agrega varios estudiantes a cola y ejecuta generación masiva para acelerar el c
 
 ---
 
+<a id="uso-en-la-nube"></a>
+## ☁️ Uso en la nube (sin instalación)
+
+### ✨ Opción más fácil: Streamlit Cloud
+
+Si deseas usar RetroIA **sin instalar nada en tu computadora**, puedes acceder a ella directamente desde la nube:
+
+#### Pasos para empezar:
+
+1. **Obtén una clave de API de OpenRouter**
+   - Ve a [OpenRouter.ai](https://openrouter.ai)
+   - Regístrate o inicia sesión
+   - Copia tu clave API
+
+2. **Accede a la aplicación en la nube**
+   - La aplicación está desplegada en Streamlit Cloud
+   - Simplemente abre el enlace y comienza a usar RetroIA
+
+3. **Configura tu API Key**
+   - En la interfaz web, pega tu clave de OpenRouter
+   - ¡Listo! Ya puedes generar retroalimentaciones
+
+#### Ventajas de usar en la nube:
+
+✅ **Sin instalación**: No necesitas Python, virtual environments ni dependencias  
+✅ **Acceso desde cualquier lugar**: Solo necesitas un navegador web  
+✅ **Sincronización automática**: Los cambios se guardan en la nube  
+✅ **Actualizaciones incluidas**: Siempre usas la última versión  
+✅ **Compatible con cualquier dispositivo**: PC, Mac, tablet, móvil  
+
+#### Limitaciones:
+
+⚠️ **Almacenamiento temporal**: Los datos pueden perderse si usas solo SQLite local. Para persistencia permanente, necesitarás una base de datos remota (Turso/LibSQL).
+
+---
+
 <a id="instalacion-rapida"></a>
 ## ⚙️ Instalación rápida
+
+### Para desarrolladores o instalación local:
 
 ### 1) Clona el repositorio
 
