@@ -94,7 +94,7 @@ Agrega varios estudiantes a cola y ejecuta generación masiva para acelerar el c
 
 ```bash
 git clone https://github.com/RetroIA-PLS/retro.git
-cd retroia
+cd retro
 ```
 
 ### 2) Crea y activa entorno virtual
