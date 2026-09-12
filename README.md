@@ -93,34 +93,52 @@ Agrega varios estudiantes a cola y ejecuta generación masiva para acelerar el c
 
 ### ✨ Opción más fácil: Streamlit Cloud
 
-Si deseas usar RetroIA **sin instalar nada en tu computadora**, puedes acceder a ella directamente desde la nube:
+Si deseas usar RetroIA **sin instalar nada en tu computadora** y asegurando que todas tus actividades y rúbricas se guarden de forma permanente, debes desplegar tu propia copia del sistema. Solo necesitas configurar tres cuentas gratuitas por única vez:
 
 #### Pasos para empezar:
 
-1. **Obtén una clave de API de OpenRouter**
-   - Ve a [OpenRouter.ai](https://openrouter.ai)
-   - Regístrate o inicia sesión
-   - Copia tu clave API
+1. **Clonar el código (GitHub)**
+   - Ve a [GitHub](https://github.com/) y crea una cuenta gratuita.
+   - Abre el enlace del repositorio de RetroIA que te compartieron.
+   - En la esquina superior derecha, haz clic en el botón **"Fork"** (Crear bifurcación). Esto creará una copia exacta del código en tu propia cuenta.
 
-2. **Accede a la aplicación en la nube**
-   - La aplicación está desplegada en Streamlit Cloud
-   - Simplemente abre el enlace y comienza a usar RetroIA
+2. **Crear tu Base de Datos permanente (Turso)**
+   - *Nota: Streamlit borra los datos cada vez que se reinicia. Turso evitará que pierdas tu información.*
+   - Ve a [Turso.tech](https://turso.tech/) y regístrate (puedes usar tu cuenta de GitHub).
+   - En tu panel, haz clic en **"Create Database"** y ponle un nombre (ej. `retroia-db`).
+   - Una vez creada, entra a la base de datos y copia dos datos importantes en un bloc de notas:
+     - **URL de la base de datos:** Cópiala desde el panel principal (empieza con `libsql://...`).
+     - **Token de autenticación:** Haz clic en el botón **"Generate Token"** y copia la clave generada.
 
-3. **Configura tu API Key**
-   - En la interfaz web, pega tu clave de OpenRouter
-   - ¡Listo! Ya puedes generar retroalimentaciones
+3. **Obtener tu llave de Inteligencia Artificial (OpenRouter)**
+   - Ve a [OpenRouter.ai](https://openrouter.ai/) y regístrate.
+   - Dirígete a la sección de **"Keys"** (Claves).
+   - Haz clic en **"Create Key"**, ponle un nombre y cópiala. *(Ojo: Solo te la mostrará una vez. Guárdala en tu bloc de notas).*
 
-#### Ventajas de usar en la nube:
+4. **Desplegar la aplicación (Streamlit Cloud)**
+   - Ve a [share.streamlit.io](https://share.streamlit.io/) e inicia sesión vinculando tu cuenta de GitHub.
+   - Haz clic en el botón azul **"New app"** (Nueva aplicación).
+   - Selecciona el repositorio de RetroIA que "forkeaste" en el paso 1.
+   - En el campo *Main file path*, asegúrate de que diga `app.py`.
+   - **¡PAUSA CRÍTICA ANTES DE DESPLEGAR!** Haz clic en **"Advanced settings..."** (Configuración avanzada).
+   - En el cuadro de texto **Secrets**, pega las tres claves que guardaste, exactamente con este formato:
+     ```toml
+     OPENROUTER_API_KEY = "pega_aqui_tu_clave_de_openrouter"
+     TURSO_DATABASE_URL = "pega_aqui_tu_url_de_turso_que_empieza_con_libsql://"
+     TURSO_AUTH_TOKEN = "pega_aqui_el_token_largo_de_turso"
+     ```
+   - Haz clic en **Save** y luego en **Deploy!** (En un par de minutos, tu aplicación estará viva en internet).
 
-✅ **Sin instalación**: No necesitas Python, virtual environments ni dependencias  
-✅ **Acceso desde cualquier lugar**: Solo necesitas un navegador web  
-✅ **Sincronización automática**: Los cambios se guardan en la nube  
-✅ **Actualizaciones incluidas**: Siempre usas la última versión  
-✅ **Compatible con cualquier dispositivo**: PC, Mac, tablet, móvil  
+5. **Configuración de tu Perfil**
+   - Una vez que abra tu aplicación, ve al menú **"🤖 4. Configuración IA y Perfil"**.
+   - Llena tus datos personales (Nombre, Rol, Grupo).
+   - Configura tus directrices y da clic en Guardar. ¡Tu RetroIA ya es 100% tuya y está lista para evaluar!
 
-#### Limitaciones:
-
-⚠️ **Almacenamiento temporal**: Los datos pueden perderse si usas solo SQLite local. Para persistencia permanente, necesitarás una base de datos remota (Turso/LibSQL).
+#### Ventajas de este método:
+- ✅ **100% Privado y Permanente:** Tu información, rúbricas y alumnos se guardan en tu propia base de datos, nadie más tiene acceso.
+- ✅ **Sin instalación:** No necesitas Python ni lidiar con la terminal de comandos.
+- ✅ **Acceso universal:** Úsala desde tu PC, Mac, tablet o celular en cualquier lugar.
+- ✅ **Cero costo de servidores:** Streamlit, GitHub y Turso ofrecen capas gratuitas más que suficientes para el trabajo de un Asesor Virtual.
 
 ---
 
