@@ -44,7 +44,13 @@ class PromptBuilder:
         prompt_sistema = prompt_sistema.replace('{asesor_nombre}', n_ase).replace('{asesor_rol}', r_ase)
         
         reglas_formato = self.dirs.get('reglas_formato', 'ESTÁ ESTRICTAMENTE PROHIBIDO usar subtítulos Markdown (Ejemplo: NO escribas "## Áreas de Oportunidad"). Todo debe fluir como una carta natural, separada únicamente por saltos de párrafo.')
-        firma_corta = self.dirs.get('firma', 'Cordialmente.')
+        
+        # DESPEDIDA ALEATORIA (Para evitar que la IA la invente y rompa el formato de utils.py)
+        firmas_base = ["Cordialmente.", "Atentamente.", "Con afecto.", "Saludos cordiales."]
+        firma_personalizada = self.dirs.get('firma', '').strip()
+        if firma_personalizada and firma_personalizada not in firmas_base:
+            firmas_base.append(firma_personalizada)
+        firma_corta = random.choice(firmas_base)
         
         is_foro = "foro de integración" in n_act.lower()
         
@@ -58,9 +64,17 @@ class PromptBuilder:
         # Agregamos numeración estricta para obligar a la IA a respetar el orden
         crit_str = "".join([f"{i+1}. Criterio {k}: Nivel **{v['nivel']}**.\n" for i, (k, v) in enumerate(self.criterios_evaluados.items())])
         
-        rec_str = ""
-        if act and act.recursos:
-            rec_str = "".join([f"- {r.tipo}: {r.url} (Propósito: {r.descripcion})\n" for r in act.recursos])
+        # --- BLOQUE CONDICIONAL DE RECURSOS (Truco de invisibilidad) ---
+        rec_str = "".join([f"- {r.tipo}: {r.url} (Propósito: {r.descripcion})\n" for r in act.recursos]) if act and act.recursos else ""
+        bloque_recursos = ""
+        if rec_str:
+            bloque_recursos = f"""
+4. **RECURSOS:**
+   RECUERDA: NO uses la palabra "Recursos" ni la frase "Recursos adicionales" como título. NO uses viñetas.
+   {self.dirs.get('recursos_apoyo', '')}
+   Redacta cada recurso en un PÁRRAFO INDEPENDIENTE usando prosa natural.
+   Recursos a incluir:
+{rec_str}"""
 
         # Lista de aperturas dinámicas forzadas para evitar repetición de la IA
         aperturas_variadas = [
@@ -111,7 +125,7 @@ class PromptBuilder:
 
 {self.dirs.get('despedida', 'Espero que todo lo aprendido en estas cuatro semanas te sea de mucha ayuda.')}
 
-{firma_corta} 
+{firma_corta}
 
 {n_ase}
 {r_ase}
@@ -151,19 +165,16 @@ class PromptBuilder:
    - Escribe el nombre del nivel alcanzado en minúsculas y entre asteriscos dobles (ej. **experto**, **capacitado**).
 
 3. **ÁREAS DE OPORTUNIDAD Y SUGERENCIAS:**
-   Redacta en prosa fluida como continuación de la carta. RECUERDA: NO PONGAS TÍTULO A ESTA SECCIÓN.
-   {self.dirs.get('areas_oportunidad', '')} {self.dirs.get('sugerencias', '')}
-
-4. **RECURSOS:**
-   RECUERDA: NO uses la palabra "Recursos" como título. NO uses viñetas.
-   Redacta cada recurso en un PÁRRAFO INDEPENDIENTE usando prosa natural.
-   Recursos a incluir:
-{rec_str if rec_str else "No hay recursos registrados."}
+   Redacta en prosa fluida. RECUERDA: NO PONGAS TÍTULO A ESTA SECCIÓN.
+   ¡REGLA ESTRICTA!: Tienes ESTRICTAMENTE PROHIBIDO usar frases de transición robóticas o de machote como "En cuanto a las áreas de oportunidad", "Respecto a tus áreas de mejora" o "A continuación presento las sugerencias". Pasa directamente al análisis constructivo de forma natural.
+   {self.dirs.get('areas_oportunidad', '')} {self.dirs.get('sugerencias', '')}{bloque_recursos}
 
 5. **CIERRE EXACTO Y DESPEDIDA:**
    Usa EXACTAMENTE esta redacción final. Solo asegúrate de copiarla tal cual:
 
-{self.dirs.get('despedida', f'Para finalizar con tu retroalimentación nuevamente te felicito y agradezco el que hayas entregado tu "{n_act}".')} Me despido con esta frase de {autor_frase}: **"{texto_frase}"**. 
+{self.dirs.get('despedida', f'Para finalizar con tu retroalimentación nuevamente te felicito y agradezco el que hayas entregado tu "{n_act}".')}
+
+Me despido con esta frase de {autor_frase}: **"{texto_frase}"**. 
 
 Recuerda que siempre estoy para ti al otro lado de la pantalla. Me puedes contactar por medio de los canales institucionales.
 
