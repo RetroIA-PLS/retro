@@ -38,28 +38,21 @@ def bot_log(nivel: str, mensaje: str):
 # 2. LÓGICA DE LA EVALUACIÓN Y CATÁLOGO DE MODELOS
 sesiones: dict[int, dict] = {}
 
-MODELOS_DISPONIBLES = {
-    "auto": {"nombre": "🎲 Rotación Aleatoria", "id": "auto"},
-    "haiku": {"nombre": "⚡ Claude Haiku 4.5", "id": "anthropic/claude-haiku-4.5"},
-    "cohere": {"nombre": "🚀 Cohere-gratis", "id":  "cohere/north-mini-code:free"},
-    #"kimi": {"nombre": "🌙 Kimi K3", "id": "moonshotai/kimi-k3"},
-    "luna": {"nombre": "🟢 GPT Luna", "id": "openai/gpt-5.6-luna"},
-    "lunapro": {"nombre": "🟣 GPT Luna Pro", "id": "openai/gpt-5.6-luna-pro"},
-}
-
 NIVELES_NOMBRES = ["Experto", "Capacitado", "Aceptable", "Aprendiz", "Requiere apoyo", "No evaluable"]
 NIVELES_CLAVES = ["experto", "capacitado", "aceptable", "aprendiz", "requiere_apoyo", "no_evaluable"]
 
-
 def obtener_teclado_modelos() -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(InlineKeyboardButton(MODELOS_DISPONIBLES["auto"]["nombre"], callback_data="mod_auto"))
+    markup.add(InlineKeyboardButton("🎲 Rotación Aleatoria", callback_data="mod_auto"))
     
+    modelos = db.get_modelos()
     botones_reales = [
-        InlineKeyboardButton(info["nombre"], callback_data=f"mod_{clave}")
-        for clave, info in MODELOS_DISPONIBLES.items() if clave != "auto"
+        InlineKeyboardButton(m["nombre"], callback_data=f"mod_{m['id']}")
+        for m in modelos
     ]
-    markup.add(*botones_reales)
+    if botones_reales:
+        markup.add(*botones_reales)
+        
     return markup
 
 
@@ -128,7 +121,10 @@ def iniciar_evaluacion(message):
 
     bot_log("INFO", f"Sesión iniciada. Modo: {modo}. Usuario: {message.chat.id}")
 
-    encabezado = "📦 *Modo Lote activado*\n" if modo == "batch" else "👋 ¡Hola, Haggi!\n"
+    dirs = db.get_all_directrices()
+    n_ase = dirs.get("asesor_nombre", "Asesor").split()[0] if dirs.get("asesor_nombre") else "Asesor"
+
+    encabezado = "📦 *Modo Lote activado*\n" if modo == "batch" else f"👋 ¡Hola, {n_ase}!\n"
     bot.send_message(
         message.chat.id,
         f"{encabezado}Selecciona el **modelo de IA** para evaluar:",
@@ -151,11 +147,24 @@ def cancelar_evaluacion(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith('mod_'))
 def seleccionar_modelo(call):
     chat_id = call.message.chat.id
-    clave_modelo = call.data.split('_', 1)[1]
-    info = MODELOS_DISPONIBLES.get(clave_modelo, MODELOS_DISPONIBLES["auto"])
+    mod_id_str = call.data.split('_', 1)[1]
+    
+    if mod_id_str == "auto":
+        sesiones[chat_id]["modelo_id"] = "auto"
+        sesiones[chat_id]["modelo_nombre"] = "🎲 Rotación Aleatoria"
+        nombre_display = "🎲 Rotación Aleatoria"
+    else:
+        modelos = db.get_modelos()
+        mod = next((m for m in modelos if str(m['id']) == mod_id_str), None)
+        if mod:
+            sesiones[chat_id]["modelo_id"] = mod["api_id"]
+            sesiones[chat_id]["modelo_nombre"] = mod["nombre"]
+            nombre_display = mod["nombre"]
+        else:
+            sesiones[chat_id]["modelo_id"] = "auto"
+            sesiones[chat_id]["modelo_nombre"] = "🎲 Rotación Aleatoria"
+            nombre_display = "🎲 Rotación Aleatoria"
 
-    sesiones[chat_id]["modelo_id"] = info["id"]
-    sesiones[chat_id]["modelo_nombre"] = info["nombre"]
     sesiones[chat_id]["paso"] = "actividad"
 
     actividades = db.list_activities()
@@ -164,7 +173,7 @@ def seleccionar_modelo(call):
         markup.add(InlineKeyboardButton(act["nombre"], callback_data=f"act_{act['id']}"))
 
     bot.edit_message_text(
-        f"🤖 Modelo seleccionado: *{info['nombre']}*\n\nSelecciona la actividad a evaluar:",
+        f"🤖 Modelo seleccionado: *{nombre_display}*\n\nSelecciona la actividad a evaluar:",
         chat_id=chat_id, message_id=call.message.message_id, reply_markup=markup, parse_mode="Markdown"
     )
 
@@ -307,6 +316,7 @@ def recibir_opcion_observaciones(call):
 
     if opcion == "ninguna":
         sesiones[chat_id]["observaciones"] = ""
+        sesiones[chat_id]["es_error_formato"] = False
         evaluar_o_encolar(chat_id, call.message.message_id)
     elif opcion == "formato":
         sesiones[chat_id]["paso"] = "escribir_obs_formato"
@@ -331,9 +341,11 @@ def recibir_texto_observaciones(message):
     texto = message.text
 
     if paso_actual == "escribir_obs_formato":
-        sesiones[chat_id]["observaciones"] = f"¡INSTRUCCIÓN CRÍTICA DE SISTEMA!: Esta actividad se evalúa con la calificación mínima aprobatoria EXCLUSIVAMENTE porque no cumple con el formato de entrega solicitado. IGNORA por completo el desarrollo detallado e individual de cada criterio de la rúbrica (Cognitivo, Actitudinal, etc.). En su lugar, redacta una retroalimentación BREVE y unificada (1 o 2 párrafos). El mensaje central a desarrollar es exactamente este: '{texto}'. Usa un tono empático pero firme invitando a leer las instrucciones. NO desgloses los criterios con subtítulos."
+        sesiones[chat_id]["observaciones"] = texto
+        sesiones[chat_id]["es_error_formato"] = True
     else:
         sesiones[chat_id]["observaciones"] = texto
+        sesiones[chat_id]["es_error_formato"] = False
 
     msg_espera = bot.send_message(chat_id, "⏳ Procesando...")
     evaluar_o_encolar(chat_id, msg_espera.message_id)
@@ -346,7 +358,8 @@ def evaluar_o_encolar(chat_id, message_id_to_edit):
             "estudiante": datos["estudiante"],
             "criterios": datos["criterios"].copy(),
             "total_puntos": datos["total_puntos"],
-            "observaciones": datos.get("observaciones", "")
+            "observaciones": datos.get("observaciones", ""),
+            "es_error_formato": datos.get("es_error_formato", False)
         })
         markup = InlineKeyboardMarkup()
         markup.add(
@@ -363,7 +376,7 @@ def evaluar_o_encolar(chat_id, message_id_to_edit):
     else:
         procesar_generacion_individual(
             chat_id, message_id_to_edit,
-            datos["estudiante"], datos["criterios"], datos["total_puntos"], datos.get("observaciones", "")
+            datos["estudiante"], datos["criterios"], datos["total_puntos"], datos.get("observaciones", ""), datos.get("es_error_formato", False)
         )
 
 
@@ -385,43 +398,53 @@ def batch_run(call):
 
     for idx, item in enumerate(cola):
         bot.send_message(chat_id, f"⏳ Evaluando a {item['estudiante']} ({idx+1}/{len(cola)})...")
-        procesar_generacion_individual(chat_id, None, item["estudiante"], item["criterios"], item["total_puntos"], item["observaciones"])
+        procesar_generacion_individual(chat_id, None, item["estudiante"], item["criterios"], item["total_puntos"], item["observaciones"], item.get("es_error_formato", False))
 
     del sesiones[chat_id]
     bot_log("INFO", "Lote completado exitosamente.")
     bot.send_message(chat_id, "✨ ¡Lote completado exitosamente! Escribe /evaluar o /lote para iniciar de nuevo.")
 
 
-def procesar_generacion_individual(chat_id, message_id_to_edit, estudiante, criterios, total_puntos, obs):
+def procesar_generacion_individual(chat_id, message_id_to_edit, estudiante, criterios, total_puntos, obs, es_error_formato=False):
     datos = sesiones.get(chat_id)
     if not datos: return
     actividad = datos["actividad"]
-    modelo_id_base = datos.get("modelo_id", "auto")
-    modelos_reales = [m for k, m in MODELOS_DISPONIBLES.items() if k != "auto"]
+    
+    modelos_db = db.get_modelos()
+    if not modelos_db:
+        if message_id_to_edit:
+            try: bot.edit_message_text("❌ Error: No hay modelos de IA configurados en el panel del sistema.", chat_id, message_id_to_edit)
+            except: pass
+        else:
+            bot.send_message(chat_id, "❌ Error: No hay modelos de IA configurados en el panel del sistema.")
+        return
 
-    # 1. Definir el orden de los modelos a intentar (El "Salvavidas" y "Aleatorio Real")
+    modelos_reales = [{"id": m["api_id"], "nombre": m["nombre"], "categoria": m["categoria"]} for m in modelos_db]
+    modelo_id_base = datos.get("modelo_id", "auto")
+
+    # Si es error de formato, eliminamos a Haiku de la lista de candidatos
+    if es_error_formato:
+        modelos_reales = [m for m in modelos_reales if "haiku" not in m["id"].lower()]
+        if not modelos_reales:
+            modelos_reales = [{"id": "cohere/north-mini-code:free", "nombre": "Cohere (Respaldo)", "categoria": "Gratis"}]
+
+    # 1. Definir el orden de los modelos a intentar con ALEATORIEDAD PURA
     modelos_a_intentar = []
     
-    if modelo_id_base == "auto":
-        if datos.get("modo") == "batch":
-            ultimo_idx = datos.get("ultimo_indice_modelo", -1)
-            siguiente_idx = (ultimo_idx + 1) % len(modelos_reales)
-            datos["ultimo_indice_modelo"] = siguiente_idx
-        else:
-            # Aleatoriedad VERDADERA para modo individual
-            siguiente_idx = random.randint(0, len(modelos_reales) - 1)
-            bot_log("INFO", f"[{estudiante}] Modo individual aleatorio seleccionó índice {siguiente_idx}.")
-            
+    if modelo_id_base == "auto" or (es_error_formato and "haiku" in modelo_id_base.lower()):
+        # Tira los dados para cualquier modelo de la lista en cada evaluación individual o de lote
+        siguiente_idx = random.randint(0, len(modelos_reales) - 1)
         modelo_principal = modelos_reales[siguiente_idx]
+        bot_log("INFO", f"[{estudiante}] Modelo aleatorio seleccionado: {modelo_principal['nombre']}.")
     else:
         modelo_principal = next((m for m in modelos_reales if m["id"] == modelo_id_base), modelos_reales[0])
 
     modelos_a_intentar.append(modelo_principal)
 
-    # 1.5 Crear lista de fallback inteligente (Priorizar gratuitos si el principal falla)
+    # 1.5 Paracaídas inteligente: Dar preferencia a modelos Gratis si el principal falla
     modelos_fallback = [m for m in modelos_reales if m["id"] != modelo_principal["id"]]
-    random.shuffle(modelos_fallback) # Mezclar para no usar siempre el mismo de pago
-    modelos_fallback.sort(key=lambda x: 0 if "free" in x["id"].lower() else 1) # Mover gratuitos al inicio
+    random.shuffle(modelos_fallback) 
+    modelos_fallback.sort(key=lambda x: 0 if x["categoria"].lower() == "gratis" else 1) 
     
     modelos_a_intentar.extend(modelos_fallback)
 
@@ -433,6 +456,7 @@ def procesar_generacion_individual(chat_id, message_id_to_edit, estudiante, crit
             calificacion=total_puntos,
             criterios_evaluados=criterios,
             observaciones=obs,
+            es_error_formato=es_error_formato
         )
         prompt = builder.build()
         api_key = os.getenv("OPENROUTER_API_KEY")
@@ -485,21 +509,23 @@ def procesar_generacion_individual(chat_id, message_id_to_edit, estudiante, crit
         # 3. Guardar y enviar archivos
         item = Retroalimentacion(
             estudiante, actividad.nombre, texto_generado,
-            modelo_exitoso["id"], total_puntos, criterios, obs, prompt, 0.65
+            modelo_exitoso["nombre"], total_puntos, criterios, obs, prompt, 0.65
         )
         db.create_history(item, actividad.id)
 
-        word_bytes = docx_bytes("", texto_generado)
-        html_text = feedback_to_moodle_html(texto_generado)
+        dirs = db.get_all_directrices()
+        n_ase = dirs.get("asesor_nombre", "")
+        id_ase = dirs.get("asesor_id", "")
+
+        word_bytes = docx_bytes("", texto_generado, n_ase, id_ase)
+        html_text = feedback_to_moodle_html(texto_generado, n_ase, id_ase)
         nombre_base = generar_nombre_archivo(estudiante, actividad.nombre)
 
-        # ¡CLAVE! Borramos el mensaje de "Redactando" pero vaciamos la variable para que no crashee si falla después
         if message_id_to_edit:
             try: bot.delete_message(chat_id, message_id_to_edit)
             except Exception: pass
             message_id_to_edit = None
 
-        # ¡CLAVE! Empaquetamos en formato BytesIO seguro para Telegram
         word_buffer = io.BytesIO(word_bytes)
         word_buffer.name = f"{nombre_base}.docx"
         html_buffer = io.BytesIO(html_text.encode('utf-8'))
