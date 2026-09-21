@@ -8,13 +8,14 @@ from validators import ValidationResult
 
 
 class PromptBuilder:
-    def __init__(self, directrices: dict[str, str], actividad: Actividad | None, estudiante: str, calificacion: float, criterios_evaluados: dict[str, dict[str, Any]], observaciones: str) -> None:
+    def __init__(self, directrices: dict[str, str], actividad: Actividad | None, estudiante: str, calificacion: float, criterios_evaluados: dict[str, dict[str, Any]], observaciones: str, es_error_formato: bool = False) -> None:
         self.dirs = directrices
         self.actividad = actividad
         self.estudiante = estudiante.strip()
         self.calificacion = calificacion
         self.criterios_evaluados = criterios_evaluados
         self.observaciones = observaciones.strip()
+        self.es_error_formato = es_error_formato
 
     def count_tokens(self) -> int:
         return len(self.build()) // 4
@@ -45,13 +46,43 @@ class PromptBuilder:
         
         reglas_formato = self.dirs.get('reglas_formato', 'ESTÁ ESTRICTAMENTE PROHIBIDO usar subtítulos Markdown (Ejemplo: NO escribas "## Áreas de Oportunidad"). Todo debe fluir como una carta natural, separada únicamente por saltos de párrafo.')
         
-        # DESPEDIDA ALEATORIA (Para evitar que la IA la invente y rompa el formato de utils.py)
+        # DESPEDIDA ALEATORIA
         firmas_base = ["Cordialmente.", "Atentamente.", "Con afecto.", "Saludos cordiales."]
         firma_personalizada = self.dirs.get('firma', '').strip()
         if firma_personalizada and firma_personalizada not in firmas_base:
             firmas_base.append(firma_personalizada)
         firma_corta = random.choice(firmas_base)
         
+        # =================================================================
+        # CORTOCIRCUITO: PROMPT EXCLUSIVO PARA ERROR DE FORMATO
+        # =================================================================
+        if self.es_error_formato:
+            instruccion_error = self.dirs.get('error_formato', 'La actividad se evalúa con calificación mínima porque no cumple con el formato solicitado.')
+            return f"""{prompt_sistema}
+
+### DATOS DEL ALUMNO Y ACTIVIDAD:
+- Estudiante: {self.estudiante}
+- Actividad: "{n_act}"
+- Detalle del error (Notas del Asesor): {self.observaciones if self.observaciones else "Entregó la actividad en un formato de archivo incorrecto."}
+
+### INSTRUCCIÓN CRÍTICA DE FORMATO INCORRECTO:
+{instruccion_error}
+
+¡REGLA DE ORO!: TIENES ESTRICTAMENTE PROHIBIDO desglosar los criterios de la rúbrica (Cognitivo, Actitudinal, Comunicativo, etc.). No los menciones. Solo debes redactar un mensaje breve, directo y unificado (1 o 2 párrafos máximo) informando al estudiante sobre el error de formato, basándote en el "Detalle del error" proporcionado arriba.
+
+1. **SALUDO:** Inicia EXACTAMENTE con: **Apreciable, {self.estudiante}.** (Dando un salto de línea después).
+2. **CUERPO DEL MENSAJE:** Redacta la observación del error de formato con empatía pero firmeza, invitándolo a revisar las instrucciones para futuras entregas.
+3. **DESPEDIDA:** Usa exactamente esta firma:
+{firma_corta}
+
+{n_ase}
+{r_ase}
+{id_ase}
+{grupo_asignado}"""
+
+        # =================================================================
+        # FLUJO NORMAL DE ACTIVIDADES
+        # =================================================================
         is_foro = "foro de integración" in n_act.lower()
         
         if act and act.frase:
@@ -61,10 +92,8 @@ class PromptBuilder:
             texto_frase = "Siempre parece imposible hasta que se hace"
             autor_frase = "Nelson Mandela"
         
-        # Agregamos numeración estricta para obligar a la IA a respetar el orden
         crit_str = "".join([f"{i+1}. Criterio {k}: Nivel **{v['nivel']}**.\n" for i, (k, v) in enumerate(self.criterios_evaluados.items())])
         
-        # --- BLOQUE CONDICIONAL DE RECURSOS (Truco de invisibilidad) ---
         rec_str = "".join([f"- {r.tipo}: {r.url} (Propósito: {r.descripcion})\n" for r in act.recursos]) if act and act.recursos else ""
         bloque_recursos = ""
         if rec_str:
@@ -76,7 +105,6 @@ class PromptBuilder:
    Recursos a incluir:
 {rec_str}"""
 
-        # Lista de aperturas dinámicas forzadas para evitar repetición de la IA
         aperturas_variadas = [
             "Es un gusto observar en tu trabajo el esfuerzo reflejado...",
             "El desarrollo de tu documento refleja un compromiso notable...",
@@ -105,6 +133,7 @@ class PromptBuilder:
 - {reglas_formato}
 - ESTÁ ESTRICTAMENTE PROHIBIDO usar subtítulos, negritas para títulos o viñetas (NO escribas "Criterio cognitivo", "Criterio actitudinal", etc.). Todo debe fluir como párrafos naturales.
 - ESTÁ ESTRICTAMENTE PROHIBIDO mencionar el nombre de los niveles obtenidos (NO escribas las palabras "experto", "capacitado", "aceptable", "aprendiz", etc.). Tu trabajo es interpretar el nivel y describirlo cualitativamente.
+- DISTRIBUCIÓN DE NOTAS: Si el Asesor incluyó "Notas específicas", intégralas de forma natural a lo largo de tu redacción para justificar las áreas correspondientes, no las aísles al final.
 
 ### INSTRUCCIONES ESTRICTAS DE REDACCIÓN Y SECCIONES:
 
@@ -141,10 +170,12 @@ class PromptBuilder:
 - Propósito de la actividad: {prop_act}
 - Evaluaciones (EN ORDEN ESTRICTO):
 {crit_str}
-- Notas específicas del Asesor: {self.observaciones if self.observaciones else "Todo correcto según los niveles. Redacta justificando por qué alcanzó esos niveles en el contexto de la actividad."}
+- Notas específicas del Asesor: {self.observaciones if self.observaciones else "Todo correcto según los niveles."}
 
-### REGLA DE ORO DE FORMATO (¡MUY IMPORTANTE!):
-{reglas_formato}
+### REGLAS DE ORO CONTRA ALUCINACIONES Y FORMATO (¡MUY IMPORTANTE!):
+1. {reglas_formato}
+2. ¡PROHIBIDO INVENTAR CONTEXTO!: Esta actividad pertenece estrictamente a un módulo de MATEMÁTICAS. Está ESTRICTAMENTE PROHIBIDO inventar conceptos de física, mecánica, diseño, historia u otras materias guiándote solo por el nombre de la actividad ("{n_act}"). Limítate a evaluar el procedimiento matemático y los datos proporcionados.
+3. DISTRIBUCIÓN DE NOTAS: Las "Notas específicas del Asesor" deben ser integradas y distribuidas a lo largo de los párrafos de los criterios para justificar los niveles obtenidos. Tienes PROHIBIDO agrupar las notas del asesor en un solo párrafo aislado al final o dejarlas fuera de la carta.
 
 ### INSTRUCCIONES ESTRICTAS DE REDACCIÓN Y SECCIONES:
 
